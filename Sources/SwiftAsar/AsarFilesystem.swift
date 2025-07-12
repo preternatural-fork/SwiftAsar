@@ -72,9 +72,9 @@ public struct FileEntry: Sendable, Hashable {
     public let executable: Bool
     public let offset: UInt64
     public let size: Int
-    public let integrity: FileIntegrity
+    public let integrity: FileIntegrity?
     
-    public init(unpacked: Bool, executable: Bool, offset: UInt64, size: Int, integrity: FileIntegrity) {
+    public init(unpacked: Bool, executable: Bool, offset: UInt64, size: Int, integrity: FileIntegrity?) {
         self.unpacked = unpacked
         self.executable = executable
         self.offset = offset
@@ -121,11 +121,11 @@ extension FilesystemEntry: Codable {
             self = .symlink(SymlinkEntry(link: link, unpacked: unpacked))
         } else {
             // File entry
-            let unpacked = try container.decode(Bool.self, forKey: .unpacked)
-            let executable = try container.decode(Bool.self, forKey: .executable)
+            let unpacked = try container.decodeIfPresent(Bool.self, forKey: .unpacked) ?? false
+            let executable = try container.decodeIfPresent(Bool.self, forKey: .executable) ?? false
             let offsetString = try container.decode(String.self, forKey: .offset)
             let size = try container.decode(Int.self, forKey: .size)
-            let integrity = try container.decode(FileIntegrity.self, forKey: .integrity)
+            let integrity = try container.decodeIfPresent(FileIntegrity.self, forKey: .integrity)
             
             guard let offset = UInt64(offsetString) else {
                 throw DecodingError.dataCorruptedError(
@@ -156,11 +156,17 @@ extension FilesystemEntry: Codable {
             }
             
         case .file(let entry):
-            try container.encode(entry.unpacked, forKey: .unpacked)
-            try container.encode(entry.executable, forKey: .executable)
+            if entry.unpacked {
+                try container.encode(entry.unpacked, forKey: .unpacked)
+            }
+            if entry.executable {
+                try container.encode(entry.executable, forKey: .executable)
+            }
             try container.encode(String(entry.offset), forKey: .offset)
             try container.encode(entry.size, forKey: .size)
-            try container.encode(entry.integrity, forKey: .integrity)
+            if let integrity = entry.integrity {
+                try container.encode(integrity, forKey: .integrity)
+            }
             
         case .symlink(let entry):
             try container.encode(entry.link, forKey: .link)

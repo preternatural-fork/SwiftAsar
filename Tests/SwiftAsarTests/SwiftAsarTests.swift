@@ -175,3 +175,56 @@ struct FilesystemTests {
         }
     }
 }
+
+@Suite("Real-world Archive Tests")
+struct RealWorldTests {
+    @Test("List files in Linear.app Resources directory")
+    func listLinearAppFiles() async throws {
+        let linearResourcesPath = "/Applications/Linear.app/Contents/Resources"
+        
+        // First, check if Linear.app exists
+        let linearExists = FileManager.default.fileExists(atPath: linearResourcesPath)
+        guard linearExists else {
+            // Skip test if Linear.app is not installed
+            return
+        }
+        
+        // Look for app.asar in the Resources directory
+        let asarPath = "\(linearResourcesPath)/app.asar"
+        let asarExists = FileManager.default.fileExists(atPath: asarPath)
+        guard asarExists else {
+            // Skip test if app.asar is not found
+            print("app.asar not found in Linear.app Resources, skipping test")
+            return
+        }
+        
+        // Try to read and list the Asar archive contents
+        let archive = try await AsarArchive(archivePath: asarPath)
+        let filesystem = archive.header.filesystem
+        
+        // List all files in the archive
+        let files = try filesystem.listFiles(recursive: true)
+        
+        // Verify we found some files
+        #expect(!files.isEmpty, "Archive should contain files")
+        
+        // Print some information about the archive for debugging
+        print("Found \(files.count) files in Linear.app archive")
+        
+        // List first 10 files as a sample
+        for (index, file) in files.prefix(10).enumerated() {
+            print("\(index + 1). \(file)")
+        }
+        
+        // Look for common files we'd expect in an Electron app
+        let hasPackageJson = files.contains { $0.hasSuffix("package.json") }
+        let hasMainJs = files.contains { $0.contains("main.js") || $0.contains("index.js") }
+        
+        if hasPackageJson {
+            print("✓ Found package.json in archive")
+        }
+        if hasMainJs {
+            print("✓ Found main/index.js in archive")
+        }
+    }
+}
